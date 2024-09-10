@@ -1,0 +1,148 @@
+import {ref} from "vue";
+
+export const useRTCPeer = () => {
+  const constraints = {
+    video: {
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+      frameRate: { ideal: 30 },
+    },
+    audio: true,
+  };
+
+  const peerConfig = {
+    // iceServers: [
+    //   {
+    //     urls: 'stun:stun.l.google.com:19302',
+    //   },
+    // ],
+  }
+
+  const isInitiated = ref(false);
+
+  const peer = ref(null);
+  const activeStream = ref(null);
+  const localOffer = ref(null);
+  const localCandidate = ref(null);
+
+
+  // OPTIONAL: Starting a connection
+  const start = async (localVideoRef, remoteVideRef) => {
+    isInitiated.value = true;
+    activeStream.value = await navigator.mediaDevices.getUserMedia(constraints);
+    localVideoRef.value.srcObject = activeStream.value;
+
+    peer.value = new RTCPeerConnection(peerConfig);
+    activeStream.value?.getTracks().forEach((track) => {
+      peer.value.addTrack(track);
+    });
+    localOffer.value = await peer.value.createOffer();
+    await peer.value.setLocalDescription(new RTCSessionDescription(localOffer.value));
+
+    setupListeners(remoteVideRef);
+
+  };
+
+  /**
+   * Accepting a connection
+   * @param {Ref} remoteVideRef
+   * @param {RTCSessionDescription} remoteOffer
+   * @return {Promise<void>}
+   */
+  const accept = async (remoteVideoRef, remoteOffer) => {
+    peer.value.ontrack = e => {
+      maybeSetCodecPreferences(e)
+      remoteVideoRef.value.srcObject = e.streams[0];
+    }
+
+    return await peer.value.setRemoteDescription(remoteOffer);
+  };
+
+
+  /**
+   * Joining a connection
+   * @param {Ref} localVideoRef
+   * @param {Ref} remoteVideRef
+   * @param {RTCSessionDescription} remoteOffer
+   * @return {Promise<void>}
+   */
+  const join = async (localVideoRef, remoteVideRef, remoteOffer) => {
+    isInitiated.value = true;
+    activeStream.value = await navigator.mediaDevices.getUserMedia(constraints);
+    localVideoRef.value.srcObject = activeStream.value;
+
+    // Create a new peer connection, add the tracks and generate offer
+    peer.value = new RTCPeerConnection(peerConfig);
+    activeStream.value?.getTracks().forEach((track) => {
+      peer.value.addTrack(track);
+    });
+    // Set the remote offer and listen for the ontrack event
+    await peer.value.setRemoteDescription(remoteOffer);
+
+    setupListeners(remoteVideRef);
+
+    localOffer.value = await peer.value.createAnswer();
+    return await peer.value.setLocalDescription(localOffer.value);
+
+  }
+
+  const setupListeners = (remoteVideRef) => {
+    peer.value.addEventListener('icecandidate', e => {
+      if (e.candidate) {
+        localCandidate.value = e.candidate.toJSON();
+        console.log(localCandidate.value)
+      }
+    })
+
+    peer.value.addEventListener('connectionstatechange', e => {
+      console.log('connectionstatechange:', e)
+    })
+
+    peer.value.addEventListener('icegatheringstatechange', e => {
+      console.log('icegatheringstatechange:', e)
+    })
+
+    peer.value.addEventListener('track', e => {
+      console.log('track:', e)
+      maybeSetCodecPreferences(e)
+      remoteVideRef.value.srcObject = e.streams[0];
+    })
+  }
+
+  const addCandidate = async (candidate) => {
+    await peer.value.addIceCandidate(candidate);
+  }
+
+
+  // Ending call
+  const end = (videoRef, remoteVideRef) => {
+    peer.value.close();
+    activeStream.value.getTracks().forEach((track) => {
+      track.stop();
+    });
+    videoRef.value.srcObject = null;
+    remoteVideRef.value.srcObject = null;
+  };
+
+
+  return { isInitiated, localOffer, localCandidate, start, end, join, accept, addCandidate};
+}
+
+
+// eslint-disable-next-line prefer-const
+let preferredVideoCodecMimeType = 'video/VP8';
+
+// Helper function to set codec preferences
+const supportsSetCodecPreferences = window.RTCRtpTransceiver &&
+  'setCodecPreferences' in window.RTCRtpTransceiver.prototype;
+function maybeSetCodecPreferences(trackEvent) {
+  if (!supportsSetCodecPreferences) return;
+  if (trackEvent.track.kind === 'video' && preferredVideoCodecMimeType) {
+    const {codecs} = RTCRtpReceiver.getCapabilities('video');
+    const selectedCodecIndex = codecs.findIndex(c => c.mimeType === preferredVideoCodecMimeType);
+    const selectedCodec = codecs[selectedCodecIndex];
+    codecs.splice(selectedCodecIndex, 1);
+    codecs.unshift(selectedCodec);
+    trackEvent.transceiver.setCodecPreferences(codecs);
+  }
+}
