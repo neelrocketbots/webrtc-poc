@@ -34,13 +34,13 @@
 
 <script setup>
 import {useRTCPeer} from "./composables/UseRTCPeer.js";
-import {ref, useTemplateRef} from "vue";
+import {ref} from "vue";
 
 const remoteOffer = ref('');
 const remoteCandidate = ref('');
 
-const localUser = useTemplateRef('localUser');
-const remoteUser = useTemplateRef('remoteUser');
+const localUser = ref(null);
+const remoteUser = ref(null);
 
 const {isInitiated, start, end, accept, join, localOffer, localCandidate, addCandidate} = useRTCPeer();
 
