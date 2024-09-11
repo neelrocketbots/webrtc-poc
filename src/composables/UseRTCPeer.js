@@ -15,6 +15,11 @@ export const useRTCPeer = () => {
       {
         urls: 'stun:stun.l.google.com:19302',
       },
+      {
+        url: 'turn:turn.speed.cloudflare.com:50000',
+        "username":"4028772aeac9e5eab43094fe6ade25dc7816e7f73317f1d8e59ff5c567619e76abb0cad8078c5e8cb0515aa9beae222b64ff6ef5c700e1bbada6f8d9f56566f1",
+        "credential":"aba9b169546eb6dcc7bfb1cdf34544cf95b5161d602e3b5fa7c8342b2e9802fb"
+      }
     ],
   }
 

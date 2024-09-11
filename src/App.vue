@@ -46,7 +46,7 @@ const onStartEnd = () => {
 
 const onJoinAccept = async () => {
   try {
-    const parsed = JSON.parse(remoteOffer.value);
+    const parsed = JSON.parse(remoteOffer.value.trim());
     const offer = new RTCSessionDescription(parsed);
     if (isInitiated.value) {
       await accept(remoteUser, offer)
