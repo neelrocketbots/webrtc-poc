@@ -11,11 +11,11 @@ export const useRTCPeer = () => {
   };
 
   const peerConfig = {
-    // iceServers: [
-    //   {
-    //     urls: 'stun:stun.l.google.com:19302',
-    //   },
-    // ],
+    iceServers: [
+      {
+        urls: 'stun:stun.l.google.com:19302',
+      },
+    ],
   }
 
   const isInitiated = ref(false);
@@ -23,8 +23,6 @@ export const useRTCPeer = () => {
   const peer = ref(null);
   const activeStream = ref(null);
   const localOffer = ref(null);
-  const localCandidate = ref(null);
-
 
   // OPTIONAL: Starting a connection
   const start = async (localVideoRef, remoteVideRef) => {
@@ -34,7 +32,7 @@ export const useRTCPeer = () => {
 
     peer.value = new RTCPeerConnection(peerConfig);
     activeStream.value?.getTracks().forEach((track) => {
-      peer.value.addTrack(track);
+      peer.value.addTrack(track, activeStream.value);
     });
     localOffer.value = await peer.value.createOffer();
     await peer.value.setLocalDescription(new RTCSessionDescription(localOffer.value));
@@ -62,11 +60,11 @@ export const useRTCPeer = () => {
   /**
    * Joining a connection
    * @param {Ref} localVideoRef
-   * @param {Ref} remoteVideRef
+   * @param {Ref} remoteVideoRef
    * @param {RTCSessionDescription} remoteOffer
    * @return {Promise<void>}
    */
-  const join = async (localVideoRef, remoteVideRef, remoteOffer) => {
+  const join = async (localVideoRef, remoteVideoRef, remoteOffer) => {
     isInitiated.value = true;
     activeStream.value = await navigator.mediaDevices.getUserMedia(constraints);
     localVideoRef.value.srcObject = activeStream.value;
@@ -74,23 +72,29 @@ export const useRTCPeer = () => {
     // Create a new peer connection, add the tracks and generate offer
     peer.value = new RTCPeerConnection(peerConfig);
     activeStream.value?.getTracks().forEach((track) => {
-      peer.value.addTrack(track);
+      peer.value.addTrack(track, activeStream.value);
     });
+
+    peer.value.ontrack = e => {
+      maybeSetCodecPreferences(e)
+      remoteVideoRef.value.srcObject = e.streams[0];
+    }
+
     // Set the remote offer and listen for the ontrack event
     await peer.value.setRemoteDescription(remoteOffer);
 
-    setupListeners(remoteVideRef);
+    setupListeners();
 
     localOffer.value = await peer.value.createAnswer();
     return await peer.value.setLocalDescription(localOffer.value);
 
   }
 
-  const setupListeners = (remoteVideRef) => {
+  const setupListeners = () => {
     peer.value.addEventListener('icecandidate', e => {
       if (e.candidate) {
-        localCandidate.value = e.candidate.toJSON();
-        console.log(localCandidate.value)
+        console.log('icecandidate:', e.candidate)
+        // peer.value.addIceCandidate(new RTCIceCandidate(e.candidate));
       }
     })
 
@@ -100,17 +104,10 @@ export const useRTCPeer = () => {
 
     peer.value.addEventListener('icegatheringstatechange', e => {
       console.log('icegatheringstatechange:', e)
+      localOffer.value = e.target.localDescription.toJSON();
+      if (e.target.iceGatheringState === 'complete')
+        console.log('ICE gathering complete:', localOffer.value)
     })
-
-    peer.value.addEventListener('track', e => {
-      console.log('track:', e)
-      maybeSetCodecPreferences(e)
-      remoteVideRef.value.srcObject = e.streams[0];
-    })
-  }
-
-  const addCandidate = async (candidate) => {
-    await peer.value.addIceCandidate(candidate);
   }
 
 
@@ -125,7 +122,7 @@ export const useRTCPeer = () => {
   };
 
 
-  return { isInitiated, localOffer, localCandidate, start, end, join, accept, addCandidate};
+  return { isInitiated, localOffer, start, end, join, accept };
 }
 
 

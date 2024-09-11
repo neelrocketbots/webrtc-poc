@@ -21,14 +21,6 @@
     <textarea placeholder="SDP config from other user" rows="4" v-model="remoteOffer"></textarea>
     <button @click="onJoinAccept" :disabled="!remoteOffer">{{ isInitiated ? 'Accept': 'Join'}}</button>
   </div>
-  <div v-if="localCandidate">
-    <div>Your Candidate:</div>
-    <div style="font-size: 12px; padding: 16px;">{{localCandidate}}</div>
-    <div style="display: flex; flex-direction: column">
-      <textarea placeholder="Candidate config from other user" rows="4" v-model="remoteCandidate"></textarea>
-      <button @click="onAddCandidate" :disabled="!remoteCandidate">Connect</button>
-    </div>
-  </div>
 
 </template>
 
@@ -37,12 +29,11 @@ import {useRTCPeer} from "./composables/UseRTCPeer.js";
 import {ref} from "vue";
 
 const remoteOffer = ref('');
-const remoteCandidate = ref('');
 
 const localUser = ref(null);
 const remoteUser = ref(null);
 
-const {isInitiated, start, end, accept, join, localOffer, localCandidate, addCandidate} = useRTCPeer();
+const {isInitiated, start, end, accept, join, localOffer} = useRTCPeer();
 
 const onStartEnd = () => {
   if (isInitiated.value) {
@@ -56,7 +47,6 @@ const onStartEnd = () => {
 const onJoinAccept = async () => {
   try {
     const parsed = JSON.parse(remoteOffer.value);
-    console.log(parsed)
     const offer = new RTCSessionDescription(parsed);
     if (isInitiated.value) {
       await accept(remoteUser, offer)
@@ -65,18 +55,10 @@ const onJoinAccept = async () => {
       await join(localUser, remoteUser, offer)
     }
   } catch (e) {
-    console.error('Invalid SDP config')
+    console.error('Invalid SDP config', e)
     return
   }
 }
 
-const onAddCandidate = () => {
-  try {
-    const candidate = new RTCIceCandidate(JSON.parse(remoteCandidate.value));
-    addCandidate(candidate);
-  } catch (e) {
-    console.error('Invalid candidate config')
-  }
-}
 
 </script>
